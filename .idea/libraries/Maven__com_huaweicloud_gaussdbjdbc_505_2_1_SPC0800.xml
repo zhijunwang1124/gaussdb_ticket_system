@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: com.huaweicloud:gaussdbjdbc:505.2.1.SPC0800">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/com/huaweicloud/gaussdbjdbc/505.2.1.SPC0800/gaussdbjdbc-505.2.1.SPC0800.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/com/huaweicloud/gaussdbjdbc/505.2.1.SPC0800/gaussdbjdbc-505.2.1.SPC0800-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/com/huaweicloud/gaussdbjdbc/505.2.1.SPC0800/gaussdbjdbc-505.2.1.SPC0800-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

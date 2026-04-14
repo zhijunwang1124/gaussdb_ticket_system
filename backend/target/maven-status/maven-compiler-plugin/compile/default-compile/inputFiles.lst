@@ -1,0 +1,8 @@
+D:\project\gaussdb-ticket-system\backend\src\main\java\com\example\gaussdb\dto\Requests.java
+D:\project\gaussdb-ticket-system\backend\src\main\java\com\example\gaussdb\service\CoreService.java
+D:\project\gaussdb-ticket-system\backend\src\main\java\com\example\gaussdb\config\WebConfig.java
+D:\project\gaussdb-ticket-system\backend\src\main\java\com\example\gaussdb\llm\LlmClient.java
+D:\project\gaussdb-ticket-system\backend\src\main\java\com\example\gaussdb\llm\OpenAiLlmClient.java
+D:\project\gaussdb-ticket-system\backend\src\main\java\com\example\gaussdb\service\impl\CoreServiceImpl.java
+D:\project\gaussdb-ticket-system\backend\src\main\java\com\example\gaussdb\GaussdbTicketApplication.java
+D:\project\gaussdb-ticket-system\backend\src\main\java\com\example\gaussdb\controller\CoreController.java
