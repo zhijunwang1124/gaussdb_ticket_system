@@ -2,6 +2,7 @@ package com.example.gaussdb.service.impl;
 
 import com.example.gaussdb.dto.Requests.AnalysisColumnRequest;
 import com.example.gaussdb.dto.Requests.PivotRequest;
+import com.example.gaussdb.dto.Requests.PersonnelPivotRequest;
 import com.example.gaussdb.TicketColumns;
 import com.example.gaussdb.dto.Requests.SaveAnalysisItem;
 import com.example.gaussdb.dto.Requests.SaveAnalysisRequest;
@@ -160,20 +161,26 @@ public class CoreServiceImpl implements CoreService {
         String currentPhase = stringVal(data.get("当前阶段"));
         String site = stringVal(data.get("局点"));
         String handler = stringVal(data.get("当前处理人"));
+        String opsPerson = stringVal(data.get("运维人员"));
+        String devPerson = stringVal(data.get("开发人员"));
+        String coopPerson = stringVal(data.get("协同人员"));
         String desc = stringVal(data.get("问题描述"));
         String progress = stringVal(data.get("进展概述"));
         String ctrlVer = stringVal(data.get("管控版本"));
         String kernelVer = stringVal(data.get("内核版本"));
         String rootCause = stringVal(data.get("问题根因"));
         String reply = stringVal(data.get("对外答复"));
-        String sql = "INSERT INTO ticket(yw_no, \"起始日期\", \"当前阶段\", \"局点\", \"当前处理人\", \"问题描述\", \"进展概述\", "
-                + "\"管控版本\", \"内核版本\", \"问题根因\", \"对外答复\", updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,NOW()) "
+        String sql = "INSERT INTO ticket(yw_no, \"起始日期\", \"当前阶段\", \"局点\", \"当前处理人\", \"运维人员\", \"开发人员\", \"协同人员\", "
+                + "\"问题描述\", \"进展概述\", \"管控版本\", \"内核版本\", \"问题根因\", \"对外答复\", updated_at) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW()) "
                 + "ON CONFLICT (yw_no) DO UPDATE SET "
                 + "\"起始日期\" = EXCLUDED.\"起始日期\", \"当前阶段\" = EXCLUDED.\"当前阶段\", \"局点\" = EXCLUDED.\"局点\", "
-                + "\"当前处理人\" = EXCLUDED.\"当前处理人\", \"问题描述\" = EXCLUDED.\"问题描述\", \"进展概述\" = EXCLUDED.\"进展概述\", "
+                + "\"当前处理人\" = EXCLUDED.\"当前处理人\", \"运维人员\" = EXCLUDED.\"运维人员\", \"开发人员\" = EXCLUDED.\"开发人员\", "
+                + "\"协同人员\" = EXCLUDED.\"协同人员\", \"问题描述\" = EXCLUDED.\"问题描述\", \"进展概述\" = EXCLUDED.\"进展概述\", "
                 + "\"管控版本\" = EXCLUDED.\"管控版本\", \"内核版本\" = EXCLUDED.\"内核版本\", \"问题根因\" = EXCLUDED.\"问题根因\", "
                 + "\"对外答复\" = EXCLUDED.\"对外答复\", updated_at = NOW()";
         jdbcTemplate.update(sql, ywNo, startDate, emptyToNull(currentPhase), emptyToNull(site), emptyToNull(handler),
+                emptyToNull(opsPerson), emptyToNull(devPerson), emptyToNull(coopPerson),
                 emptyToNull(desc), emptyToNull(progress), emptyToNull(ctrlVer), emptyToNull(kernelVer),
                 emptyToNull(rootCause), emptyToNull(reply));
     }
@@ -945,6 +952,59 @@ public class CoreServiceImpl implements CoreService {
             payload.put("analysis", analysis);
         }
         return payload;
+    }
+
+    @Override
+    public List<Map<String, Object>> pivotPersonnel(PersonnelPivotRequest request) {
+        String field = request.getField();
+        if (field == null || field.trim().isEmpty()) {
+            field = "运维人员";
+        }
+        LocalDate start = parseLocalDate(request.getStartDate());
+        LocalDate end = parseLocalDate(request.getEndDate());
+        String quotedField = TicketColumns.quote(field);
+        String sql = "SELECT " + quotedField + " AS person, COUNT(*) AS cnt FROM ticket WHERE " + quotedField + " IS NOT NULL AND " + quotedField + " != '' ";
+        if (start != null) {
+            sql += " AND \"起始日期\" >= '" + start.toString() + "' ";
+        }
+        if (end != null) {
+            sql += " AND \"起始日期\" <= '" + end.toString() + "' ";
+        }
+        sql += " GROUP BY " + quotedField + " ORDER BY cnt DESC";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("name", String.valueOf(row.get("person")));
+            item.put("count", ((Number) row.get("cnt")).intValue());
+            result.add(item);
+        }
+        return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> pivotPersonnelTransfer(PersonnelPivotRequest request) {
+        LocalDate start = parseLocalDate(request.getStartDate());
+        LocalDate end = parseLocalDate(request.getEndDate());
+        String sql = "SELECT \"运维人员\" AS person, COUNT(*) AS cnt FROM ticket " +
+                " WHERE \"运维人员\" IS NOT NULL AND \"运维人员\" != '' " +
+                " AND ((\"开发人员\" IS NOT NULL AND \"开发人员\" != '') OR (\"协同人员\" IS NOT NULL AND \"协同人员\" != '')) ";
+        if (start != null) {
+            sql += " AND \"起始日期\" >= '" + start.toString() + "' ";
+        }
+        if (end != null) {
+            sql += " AND \"起始日期\" <= '" + end.toString() + "' ";
+        }
+        sql += " GROUP BY \"运维人员\" ORDER BY cnt DESC";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (Map<String, Object> row : rows) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("name", String.valueOf(row.get("person")));
+            item.put("count", ((Number) row.get("cnt")).intValue());
+            result.add(item);
+        }
+        return result;
     }
 
     private static class AnalyzeItemResult {

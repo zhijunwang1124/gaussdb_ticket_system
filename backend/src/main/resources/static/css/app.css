@@ -94,7 +94,7 @@ body {
 }
 
 .chart-box--trend {
-  height: 320px;
+  height: 260px;
 }
 
 .chart-box--dist {
@@ -137,4 +137,167 @@ body {
   font-weight: 600;
   color: #2b3a67;
   margin-bottom: 8px;
+}
+
+.pivot-tabs {
+  margin-top: 10px;
+}
+
+.pivot-personnel-charts-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.pivot-personnel-charts-row-full {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.pivot-personnel-chart-item {
+  width: calc(50% - 8px);
+  max-width: 500px;
+  border: 1px solid #e9eeff;
+  border-radius: 10px;
+  background: #fafbff;
+  padding: 10px;
+}
+
+.pivot-personnel-chart-item-full {
+  width: calc(50% - 8px);
+  max-width: 600px;
+  border: 1px solid #e9eeff;
+  border-radius: 10px;
+  background: #fafbff;
+  padding: 10px;
+}
+
+.pivot-personnel-chart-item-full-width {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #e9eeff;
+  border-radius: 10px;
+  background: #fafbff;
+  padding: 10px;
+}
+
+.chart-box--personnel {
+  height: 280px;
+}
+
+.chart-box--personnel-full {
+  height: 320px;
+}
+
+.tab-label-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-refresh-icon {
+  cursor: pointer;
+  color: #909399;
+  transition: color 0.2s;
+}
+
+.tab-refresh-icon:hover {
+  color: #409eff;
+}
+
+.pivot-drill-path-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #f0f5ff;
+  border-radius: 8px;
+  border: 1px solid #d9e4ff;
+}
+
+.pivot-drill-path-label {
+  font-size: 13px;
+  color: #4a5a7a;
+  margin-right: 8px;
+}
+
+.pivot-drill-path {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #2b3a67;
+}
+
+.pivot-drill-step {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pivot-dist-charts-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.pivot-dist-charts-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.pivot-dist-chart-item-half {
+  width: calc(50% - 8px);
+  border: 1px solid #e9eeff;
+  border-radius: 10px;
+  background: #fafbff;
+  padding: 10px;
+}
+
+.chart-box--pie {
+  height: 320px;
+}
+
+.pivot-dist-charts-full {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 10px;
+}
+
+.pivot-dist-chart-item {
+  width: calc(50% - 8px);
+  max-width: 500px;
+  border: 1px solid #e9eeff;
+  border-radius: 10px;
+  background: #fafbff;
+  padding: 10px;
+}
+
+.pivot-dist-chart-item-full {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #e9eeff;
+  border-radius: 10px;
+  background: #fafbff;
+  padding: 10px;
+}
+
+.pivot-dist-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2b3a67;
+  margin-bottom: 8px;
+}
+
+.drill-dialog-content {
+  padding: 10px 0;
 }

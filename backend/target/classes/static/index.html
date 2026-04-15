@@ -203,53 +203,117 @@
                 start-placeholder="开始"
                 end-placeholder="结束"
                 value-format="YYYY-MM-DD"
-                format="YYYY-MM-DD">
+                format="YYYY-MM-DD"
+                :disabled-date="(time) => time.getTime() > Date.now()">
               </el-date-picker>
-              <el-select v-model="trendGranularity" size="small" style="width:120px;">
-                <el-option label="按年" value="year"></el-option>
-                <el-option label="按月" value="month"></el-option>
-                <el-option label="按周" value="week"></el-option>
-                <el-option label="按日" value="day"></el-option>
-              </el-select>
-              <el-select v-model="pivotTopDimension" size="small" placeholder="顶层分析列" style="width:160px;">
-                <el-option
-                  v-for="c in topLevelColumns"
-                  :key="c.columnKey"
-                  :label="c.columnName"
-                  :value="c.columnKey">
-                </el-option>
-              </el-select>
               <el-button type="primary" size="small" plain round @click="runPivotAnalysis">分析</el-button>
             </div>
 
             <div v-if="showPivotResult" class="pivot-charts">
-              <div class="pivot-chart-block">
-                <div class="pivot-chart-caption">时间分组透视</div>
-                <div id="trend-chart" class="chart-box chart-box--trend"></div>
-              </div>
-              <div class="pivot-chart-block">
-                <div class="pivot-chart-caption">分析列分组透视</div>
-                <div id="dist-chart" class="chart-box chart-box--dist"></div>
-              </div>
-            </div>
+              <el-tabs v-model="pivotActiveTab" type="card" class="pivot-tabs" @tab-change="onPivotTabChange">
+                <!-- TAB 1: 时间维度 -->
+                <el-tab-pane name="time">
+                  <template #label>
+                    <span class="tab-label-with-icon">
+                      时间维度
+                      <el-icon class="tab-refresh-icon" @click.stop="refreshTimeDimension"><svg viewBox="0 0 1024 1024" width="14" height="14"><path fill="currentColor" d="M771.776 794.88A384 384 0 1 1 128 512h64a320 320 0 0 0 555.712 216.448H654.72a32 32 0 1 0 0-64h148.48a32 32 0 0 0 32 32v148.48a32 32 0 1 0-64 0v-50.56zM128 448a384 384 0 0 1 768 64h-64a320 320 0 0 0-579.712-217.6H369.28a32 32 0 0 0 0-64H220.8a32 32 0 0 0-32 32v148.48a32 32 0 0 0 64 0V448z"></path></svg></el-icon>
+                    </span>
+                  </template>
+                  <div class="pivot-chart-caption">工单时间分组透视（按月 / 按周 / 按日）</div>
+                  <div id="trend-chart-month" class="chart-box chart-box--trend"></div>
+                  <div id="trend-chart-week" class="chart-box chart-box--trend" style="margin-top:10px;"></div>
+                  <div id="trend-chart-day" class="chart-box chart-box--trend" style="margin-top:10px;"></div>
+                </el-tab-pane>
 
-            <div v-if="selectedPivotValue" style="margin-top:12px;">
-              <el-alert
-                type="info"
-                :closable="false"
-                :title="'当前已选择：' + selectedPivotLabel + ' = ' + selectedPivotValue + '，可继续选择非顶层分类进行级联分析'">
-              </el-alert>
-              <el-space style="margin-top:10px;">
-                <el-select v-model="cascadeDimension" size="small" placeholder="下一级分析列" style="width:180px;">
-                  <el-option
-                    v-for="c in cascadeColumns"
-                    :key="c.columnKey"
-                    :label="c.columnName"
-                    :value="c.columnKey">
-                  </el-option>
-                </el-select>
-                <el-button type="primary" size="small" plain round @click="runCascadeAnalysis">级联分析</el-button>
-              </el-space>
+                <!-- TAB 2: 分类维度 -->
+                <el-tab-pane name="category">
+                  <template #label>
+                    <span class="tab-label-with-icon">
+                      分类维度
+                      <el-icon class="tab-refresh-icon" @click.stop="refreshCategoryDimension"><svg viewBox="0 0 1024 1024" width="14" height="14"><path fill="currentColor" d="M771.776 794.88A384 384 0 1 1 128 512h64a320 320 0 0 0 555.712 216.448H654.72a32 32 0 1 0 0-64h148.48a32 32 0 0 0 32 32v148.48a32 32 0 1 0-64 0v-50.56zM128 448a384 384 0 0 1 768 64h-64a320 320 0 0 0-579.712-217.6H369.28a32 32 0 0 0 0-64H220.8a32 32 0 0 0-32 32v148.48a32 32 0 0 0 64 0V448z"></path></svg></el-icon>
+                    </span>
+                  </template>
+                  <div class="pivot-toolbar">
+                    <el-select v-model="pivotDimension" size="small" placeholder="选择分析列" style="width:200px;">
+                      <el-option
+                        v-for="c in pivotDimensionColumns"
+                        :key="c.columnKey"
+                        :label="c.columnName"
+                        :value="c.columnKey">
+                      </el-option>
+                    </el-select>
+                    <el-button type="primary" size="small" plain round @click="runDimensionPivot">分析列透视</el-button>
+                  </div>
+                  <div class="pivot-drill-path-container" v-if="distPivotResults.length > 0">
+                    <div class="pivot-drill-path-label">下钻路径：</div>
+                    <div class="pivot-drill-path">
+                      <span v-for="(step, idx) in pivotDrillPath" :key="idx" class="pivot-drill-step">
+                        {{ step.dimensionName }} = {{ step.value }}
+                        <span v-if="idx < pivotDrillPath.length - 1"> → </span>
+                      </span>
+                      <el-button v-if="pivotDrillPath.length > 0" type="text" size="small" @click="clearDrillPath">清除</el-button>
+                    </div>
+                  </div>
+                  <div class="pivot-dist-charts-grid">
+                    <div v-for="(result, index) in distPivotResults" :key="result.id" class="pivot-dist-chart-item-half">
+                      <div class="pivot-dist-chart-header">
+                        <span>{{ result.dimensionName }}</span>
+                        <el-button v-if="index > 0" type="text" size="small" @click="removeDistChart(index)">删除</el-button>
+                      </div>
+                      <div :id="result.id" class="chart-box chart-box--pie"></div>
+                    </div>
+                  </div>
+                </el-tab-pane>
+
+                <!-- TAB 3: 人员维度 -->
+                <el-tab-pane name="personnel">
+                  <template #label>
+                    <span class="tab-label-with-icon">
+                      人员维度
+                      <el-icon class="tab-refresh-icon" @click.stop="refreshPersonnelDimension"><svg viewBox="0 0 1024 1024" width="14" height="14"><path fill="currentColor" d="M771.776 794.88A384 384 0 1 1 128 512h64a320 320 0 0 0 555.712 216.448H654.72a32 32 0 1 0 0-64h148.48a32 32 0 0 0 32 32v148.48a32 32 0 1 0-64 0v-50.56zM128 448a384 384 0 0 1 768 64h-64a320 320 0 0 0-579.712-217.6H369.28a32 32 0 0 0 0-64H220.8a32 32 0 0 0-32 32v148.48a32 32 0 0 0 64 0V448z"></path></svg></el-icon>
+                    </span>
+                  </template>
+                  <div class="pivot-chart-caption">人员工单处理透视</div>
+                  <div class="pivot-personnel-charts-row-full">
+                    <div class="pivot-personnel-chart-item-full-width">
+                      <div class="pivot-dist-chart-header"><span>运维人员处理工单数</span></div>
+                      <div id="personnel-ops-chart" class="chart-box chart-box--personnel-full"></div>
+                    </div>
+                  </div>
+                  <div class="pivot-personnel-charts-row-full">
+                    <div class="pivot-personnel-chart-item-full-width">
+                      <div class="pivot-dist-chart-header"><span>开发人员处理工单数</span></div>
+                      <div id="personnel-dev-chart" class="chart-box chart-box--personnel-full"></div>
+                    </div>
+                  </div>
+                  <div class="pivot-personnel-charts-row-full">
+                    <div class="pivot-personnel-chart-item-full-width">
+                      <div class="pivot-dist-chart-header"><span>运维人员透传工单数（有开发人员或协同人员）</span></div>
+                      <div id="personnel-transfer-chart" class="chart-box chart-box--personnel-full"></div>
+                    </div>
+                  </div>
+                </el-tab-pane>
+              </el-tabs>
+
+              <!-- 下钻选择对话框 -->
+              <el-dialog v-model="drillDialogVisible" title="选择下钻分析列" width="400px">
+                <div class="drill-dialog-content">
+                  <p>当前选择：<strong>{{ drillTarget ? drillTarget.dimensionName : '' }}</strong> 的 <strong>{{ drillTarget ? drillTarget.value : '' }}</strong></p>
+                  <p style="margin-top: 10px;">选择下钻分析列：</p>
+                  <el-select v-model="drillColumn" size="small" placeholder="选择分析列" style="width: 100%; margin-top: 8px;">
+                    <el-option
+                      v-for="c in analysisColumns"
+                      :key="c.column_key"
+                      :label="c.column_name"
+                      :value="c.column_key">
+                    </el-option>
+                  </el-select>
+                </div>
+                <template #footer>
+                  <el-button size="small" @click="drillDialogVisible = false">取消</el-button>
+                  <el-button type="primary" size="small" @click="runDrillPivot">下钻分析</el-button>
+                </template>
+              </el-dialog>
             </div>
           </div>
         </div>
@@ -260,6 +324,7 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/element-plus/dist/locale/zh-cn.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/app.js"></script>

@@ -19,30 +19,143 @@ createApp({
     const analysisColumns = ref([]);
     const activeAnalysisColumnKeys = ref([]);
     const importedColumns = ref([]);
-    const pivotDateRange = ref([]);
+    const today = new Date();
+    const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate());
+    const formatDate = (d) => d.toISOString().slice(0, 10);
+    const pivotDateRange = ref([formatDate(sixMonthsAgo), formatDate(today)]);
+    const pivotMaxDate = formatDate(today);
     const pivotError = ref("");
-    const trendGranularity = ref("month");
-    const pivotTopDimension = ref("");
-    const cascadeDimension = ref("");
-    const topLevelColumns = ref([]);
-    const cascadeColumns = ref([]);
+    const pivotDimension = ref("");
+    const pivotDimensionColumns = ref([]);
+    const pivotCascadeColumns = ref([]);
     const showPivotResult = ref(false);
-    const selectedPivotValue = ref("");
-    const selectedPivotLabel = ref("");
-    const pivotPath = ref({});
-    let trendChart = null;
-    let distChart = null;
+    const distPivotResults = ref([]);
+    const distCharts = {};
+    const pivotDrillPath = ref([]);
+    const drillDialogVisible = ref(false);
+    const drillColumn = ref("");
+    const drillTarget = ref(null);
+    const pivotActiveTab = ref("time");
+    let trendMonthChart = null;
+    let trendWeekChart = null;
+    let trendDayChart = null;
+    let personnelOpsChart = null;
+    let personnelDevChart = null;
+    let personnelTransferChart = null;
 
     const clearPivotError = () => {
       pivotError.value = "";
     };
 
-    const resizePivotCharts = () => {
-      if (trendChart) {
-        trendChart.resize();
+    const parseBoolean = (value) => {
+      if (value === true || value === "true" || value === 1 || value === "1") {
+        return true;
       }
-      if (distChart) {
-        distChart.resize();
+      return false;
+    };
+
+    const resizePivotCharts = () => {
+      if (trendMonthChart) {
+        trendMonthChart.resize();
+      }
+      if (trendWeekChart) {
+        trendWeekChart.resize();
+      }
+      if (trendDayChart) {
+        trendDayChart.resize();
+      }
+      if (personnelOpsChart) {
+        personnelOpsChart.resize();
+      }
+      if (personnelDevChart) {
+        personnelDevChart.resize();
+      }
+      if (personnelTransferChart) {
+        personnelTransferChart.resize();
+      }
+      Object.values(distCharts).forEach((chart) => {
+        if (chart) {
+          chart.resize();
+        }
+      });
+    };
+
+    // TAB切换时调用对应的resize
+    const onPivotTabChange = async (tabName) => {
+      await Vue.nextTick();
+      // 根据当前TAB只resize对应的图表
+      if (tabName === "time") {
+        if (trendMonthChart) trendMonthChart.resize();
+        if (trendWeekChart) trendWeekChart.resize();
+        if (trendDayChart) trendDayChart.resize();
+      } else if (tabName === "category") {
+        Object.values(distCharts).forEach((chart) => {
+          if (chart) chart.resize();
+        });
+      } else if (tabName === "personnel") {
+        if (personnelOpsChart) personnelOpsChart.resize();
+        if (personnelDevChart) personnelDevChart.resize();
+        if (personnelTransferChart) personnelTransferChart.resize();
+      }
+    };
+
+    // 刷新时间维度
+    const refreshTimeDimension = async () => {
+      if (!pivotDateRange.value || pivotDateRange.value.length !== 2) {
+        pivotError.value = "请先选择数据分析的日期范围";
+        return;
+      }
+      pivotError.value = "";
+      try {
+        const trendByMonth = await queryPivot("trend", "", "month");
+        const trendByWeek = await queryPivot("trend", "", "week");
+        const trendByDay = await queryPivot("trend", "", "day");
+        renderTrendChart("trend-chart-month", trendByMonth.data || [], "按月工单数");
+        renderTrendChart("trend-chart-week", trendByWeek.data || [], "按周工单数");
+        renderTrendChart("trend-chart-day", trendByDay.data || [], "按日工单数");
+      } catch (err) {
+        pivotError.value = "刷新时间维度失败: " + (err && err.message ? err.message : "未知错误");
+      }
+    };
+
+    // 刷新分类维度
+    const refreshCategoryDimension = async () => {
+      if (!pivotDateRange.value || pivotDateRange.value.length !== 2) {
+        pivotError.value = "请先选择数据分析的日期范围";
+        return;
+      }
+      pivotError.value = "";
+      // 清空现有分类图表
+      distPivotResults.value.forEach((result) => {
+        if (distCharts[result.id]) {
+          distCharts[result.id].dispose();
+          delete distCharts[result.id];
+        }
+      });
+      distPivotResults.value = [];
+      pivotDrillPath.value = [];
+      // 重新执行分类分析
+      await runDimensionPivot();
+    };
+
+    // 刷新人员维度
+    const refreshPersonnelDimension = async () => {
+      if (!pivotDateRange.value || pivotDateRange.value.length !== 2) {
+        pivotError.value = "请先选择数据分析的日期范围";
+        return;
+      }
+      pivotError.value = "";
+      try {
+        const startDate = pivotDateRange.value[0];
+        const endDate = pivotDateRange.value[1];
+        const personnelOpsData = await queryPersonnelPivot("运维人员", startDate, endDate);
+        const personnelDevData = await queryPersonnelPivot("开发人员", startDate, endDate);
+        const personnelTransferData = await queryPersonnelTransferPivot(startDate, endDate);
+        renderPersonnelChart("personnel-ops-chart", personnelOpsData, "运维人员处理工单数");
+        renderPersonnelChart("personnel-dev-chart", personnelDevData, "开发人员处理工单数");
+        renderPersonnelChart("personnel-transfer-chart", personnelTransferData, "运维人员透传工单数");
+      } catch (err) {
+        pivotError.value = "刷新人员维度失败: " + (err && err.message ? err.message : "未知错误");
       }
     };
 
@@ -53,14 +166,37 @@ createApp({
 
     const disposePivotCharts = () => {
       window.removeEventListener("resize", onWindowResize);
-      if (trendChart) {
-        trendChart.dispose();
-        trendChart = null;
+      if (trendMonthChart) {
+        trendMonthChart.dispose();
+        trendMonthChart = null;
       }
-      if (distChart) {
-        distChart.dispose();
-        distChart = null;
+      if (trendWeekChart) {
+        trendWeekChart.dispose();
+        trendWeekChart = null;
       }
+      if (trendDayChart) {
+        trendDayChart.dispose();
+        trendDayChart = null;
+      }
+      if (personnelOpsChart) {
+        personnelOpsChart.dispose();
+        personnelOpsChart = null;
+      }
+      if (personnelDevChart) {
+        personnelDevChart.dispose();
+        personnelDevChart = null;
+      }
+      if (personnelTransferChart) {
+        personnelTransferChart.dispose();
+        personnelTransferChart = null;
+      }
+      Object.keys(distCharts).forEach((key) => {
+        if (distCharts[key]) {
+          distCharts[key].dispose();
+          delete distCharts[key];
+        }
+      });
+      distPivotResults.value = [];
     };
     if (typeof Vue.onUnmounted === "function") {
       Vue.onUnmounted(disposePivotCharts);
@@ -70,6 +206,9 @@ createApp({
       "当前阶段",
       "局点",
       "当前处理人",
+      "运维人员",
+      "开发人员",
+      "协同人员",
       "问题描述",
       "进展概述",
       "管控版本",
@@ -281,18 +420,36 @@ createApp({
     };
 
     const loadConfigs = async () => {
-      const res = await api("/analysis-columns");
-      analysisColumns.value = await res.json();
-      if (activeAnalysisColumnKeys.value.length === 0) {
-        activeAnalysisColumnKeys.value = analysisColumns.value.map((c) => c.column_key);
+      try {
+        const res = await api("/analysis-columns");
+        analysisColumns.value = await res.json();
+        console.log("Loaded analysisColumns:", analysisColumns.value);
+        if (activeAnalysisColumnKeys.value.length === 0) {
+          activeAnalysisColumnKeys.value = analysisColumns.value.map((c) => c.column_key);
+        }
+        // 填充顶层分析列下拉选项
+        const topLevelColumns = analysisColumns.value.filter((c) => parseBoolean(c.is_top_level));
+        console.log("Top level columns:", topLevelColumns);
+        pivotDimensionColumns.value = topLevelColumns.map((c) => ({
+          columnKey: c.column_key,
+          columnName: c.column_name,
+          isTopLevel: true
+        }));
+        // 填充非顶层分析列（用于下钻）
+        const cascadeColumns = analysisColumns.value.filter((c) => !parseBoolean(c.is_top_level));
+        pivotCascadeColumns.value = cascadeColumns.map((c) => ({
+          columnKey: c.column_key,
+          columnName: c.column_name,
+          isTopLevel: false
+        }));
+        if (!pivotDimension.value && pivotDimensionColumns.value.length > 0) {
+          pivotDimension.value = pivotDimensionColumns.value[0].columnKey;
+        }
+        console.log("pivotDimensionColumns:", pivotDimensionColumns.value, "pivotCascadeColumns:", pivotCascadeColumns.value, "pivotDimension:", pivotDimension.value);
+        refreshWorkflowStep();
+      } catch (err) {
+        console.error("loadConfigs error:", err);
       }
-      topLevelColumns.value = analysisColumns.value
-        .filter((c) => parseBoolean(c.is_top_level))
-        .map((c) => ({ columnKey: c.column_key, columnName: c.column_name }));
-      if (!pivotTopDimension.value && topLevelColumns.value.length > 0) {
-        pivotTopDimension.value = topLevelColumns.value[0].columnKey;
-      }
-      refreshWorkflowStep();
     };
     const loadTicketColumns = async () => {
       const res = await api("/tickets/columns");
@@ -394,7 +551,7 @@ createApp({
       a.click();
     };
 
-    const queryPivot = async (mode, dimension, topLevelOnly) => {
+    const queryPivot = async (mode, dimension, granularity) => {
       const startDate = pivotDateRange.value && pivotDateRange.value[0] ? pivotDateRange.value[0] : "";
       const endDate = pivotDateRange.value && pivotDateRange.value[1] ? pivotDateRange.value[1] : "";
       const res = await api("/pivot/query", {
@@ -403,27 +560,75 @@ createApp({
           mode,
           startDate,
           endDate,
-          granularity: trendGranularity.value,
+          granularity: granularity || "month",
           dimension,
-          topLevelOnly,
-          selectedPath: pivotPath.value
+          topLevelOnly: false,
+          selectedPath: {}
         })
       });
       return await res.json();
     };
 
-    const renderTrendChart = (rows) => {
-      const dom = document.getElementById("trend-chart");
+    const filterRecentTrendData = (rows, domId) => {
+      if (!rows || rows.length === 0) return rows;
+      const sorted = rows.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      const limit = domId === "trend-chart-month" ? 12 : domId === "trend-chart-week" ? 8 : 14;
+      if (sorted.length <= limit) return sorted;
+      return sorted.slice(sorted.length - limit);
+    };
+
+    const renderTrendChart = (domId, rows, title) => {
+      const dom = document.getElementById(domId);
       if (!dom) {
         return;
       }
-      if (!trendChart) {
-        trendChart = echarts.init(dom);
+      let chartRef = null;
+      if (domId === "trend-chart-month") {
+        if (!trendMonthChart) {
+          trendMonthChart = echarts.init(dom);
+        }
+        chartRef = trendMonthChart;
+      } else if (domId === "trend-chart-week") {
+        if (!trendWeekChart) {
+          trendWeekChart = echarts.init(dom);
+        }
+        chartRef = trendWeekChart;
+      } else {
+        if (!trendDayChart) {
+          trendDayChart = echarts.init(dom);
+        }
+        chartRef = trendDayChart;
       }
-      const names = rows.map((r) => r.name);
-      const counts = rows.map((r) => r.count);
-      trendChart.setOption({
-        title: { text: "工单数", left: "center", top: 6, textStyle: { fontSize: 13, fontWeight: 600 } },
+      if (!rows || rows.length === 0) {
+        chartRef.setOption({
+          title: {
+            text: title,
+            left: "center",
+            top: 6,
+            textStyle: { fontSize: 13, fontWeight: 600 }
+          },
+          graphic: {
+            type: "text",
+            left: "center",
+            top: "middle",
+            style: {
+              text: "该时间范围内无工单数据",
+              fill: "#999",
+              fontSize: 12
+            }
+          },
+          xAxis: { show: false },
+          yAxis: { show: false },
+          series: []
+        }, true);
+        resizePivotCharts();
+        return;
+      }
+      const filtered = filterRecentTrendData(rows, domId);
+      const names = filtered.map((r) => r.name);
+      const counts = filtered.map((r) => r.count);
+      chartRef.setOption({
+        title: { text: title, left: "center", top: 6, textStyle: { fontSize: 13, fontWeight: 600 } },
         grid: { left: 48, right: 24, top: 44, bottom: names.length > 12 ? 56 : 36 },
         tooltip: { trigger: "axis" },
         toolbox: {
@@ -444,15 +649,16 @@ createApp({
       resizePivotCharts();
     };
 
-    const renderDistributionChart = (data, dimensionName, chartType) => {
-      const dom = document.getElementById("dist-chart");
+    const renderDistributionChart = (domId, data, dimensionName, chartType, dimensionKey) => {
+      const dom = document.getElementById(domId);
       if (!dom) {
         return;
       }
-      if (!distChart) {
-        distChart = echarts.init(dom);
+      if (!distCharts[domId]) {
+        distCharts[domId] = echarts.init(dom);
       }
-      distChart.off("click");
+      const chart = distCharts[domId];
+      chart.off("click");
       const baseSeriesData = data.map((item) => ({
         name: item.name,
         value: item.count,
@@ -524,15 +730,22 @@ createApp({
         yAxis: chartType === "bar" ? { type: "value", minInterval: 1 } : undefined,
         series
       };
-      distChart.setOption(option, true);
-      distChart.on("click", (params) => {
-        const name = chartType === "bar" ? data[params.dataIndex].name : params.name;
-        if (!name) {
-          return;
+      chart.setOption(option, true);
+      
+      // 添加点击事件，用于下钻分析
+      chart.on("click", (params) => {
+        if (params.componentType === "series") {
+          const clickedValue = params.name;
+          drillTarget.value = {
+            dimensionKey: dimensionKey,
+            dimensionName: dimensionName,
+            value: clickedValue
+          };
+          drillColumn.value = "";
+          drillDialogVisible.value = true;
         }
-        selectedPivotValue.value = name;
-        selectedPivotLabel.value = dimensionName || "";
       });
+      
       resizePivotCharts();
     };
 
@@ -541,69 +754,281 @@ createApp({
         pivotError.value = "请先选择数据分析的日期范围";
         return;
       }
-      if (!pivotTopDimension.value) {
-        pivotError.value = "请选择一个顶层分析列";
+      pivotError.value = "";
+      
+      // 执行分析，结束后保持时间维度TAB（默认）
+      await runPivotAnalysisInternal();
+      pivotActiveTab.value = "time";
+    };
+
+    // 查询人员透视数据
+    const queryPersonnelPivot = async (field, startDate, endDate) => {
+      const res = await api("/pivot/personnel", {
+        method: "POST",
+        body: JSON.stringify({ field, startDate, endDate })
+      });
+      return await res.json();
+    };
+
+    // 查询人员透传数据（有开发人员或协同人员的工单，按运维人员统计）
+    const queryPersonnelTransferPivot = async (startDate, endDate) => {
+      const res = await api("/pivot/personnel-transfer", {
+        method: "POST",
+        body: JSON.stringify({ startDate, endDate })
+      });
+      return await res.json();
+    };
+
+    // 渲染人员柱状图
+    const renderPersonnelChart = (domId, data, title) => {
+      const dom = document.getElementById(domId);
+      if (!dom) return;
+      
+      if (domId === "personnel-ops-chart") {
+        if (!personnelOpsChart) personnelOpsChart = echarts.init(dom);
+      } else if (domId === "personnel-dev-chart") {
+        if (!personnelDevChart) personnelDevChart = echarts.init(dom);
+      } else if (domId === "personnel-transfer-chart") {
+        if (!personnelTransferChart) personnelTransferChart = echarts.init(dom);
+      }
+      
+      const chart = domId === "personnel-ops-chart" ? personnelOpsChart 
+        : domId === "personnel-dev-chart" ? personnelDevChart 
+        : personnelTransferChart;
+      
+      if (!data || data.length === 0) {
+        chart.setOption({
+          title: { text: title, left: "center", top: 6, textStyle: { fontSize: 13, fontWeight: 600 } },
+          graphic: { type: "text", left: "center", top: "middle", style: { text: "无数据", fill: "#999", fontSize: 12 } },
+          xAxis: { show: false },
+          yAxis: { show: false },
+          series: []
+        }, true);
+        resizePivotCharts();
         return;
       }
+      
+      const names = data.map((r) => r.name);
+      const counts = data.map((r) => r.count);
+      
+      chart.setOption({
+        title: { text: title, left: "center", top: 6, textStyle: { fontSize: 13, fontWeight: 600 } },
+        grid: { left: 48, right: 24, top: 44, bottom: names.length > 12 ? 56 : 36 },
+        tooltip: { trigger: "axis" },
+        toolbox: { right: 12, top: 6, feature: { saveAsImage: { title: "保存为图片" } } },
+        dataZoom: names.length > 14 ? [{ type: "inside" }, { type: "slider", bottom: 8, height: 18 }] : [{ type: "inside" }],
+        xAxis: { type: "category", data: names, axisLabel: { interval: 0, rotate: names.length > 10 ? 28 : 0 } },
+        yAxis: { type: "value", minInterval: 1 },
+        series: [{
+          type: "bar",
+          data: counts,
+          itemStyle: { color: "#5b8ff9" },
+          label: { show: true, position: "top", fontSize: 11 }
+        }]
+      }, true);
+      resizePivotCharts();
+    };
+
+    const runDimensionPivot = async () => {
+      console.log("runDimensionPivot called");
+      console.log("pivotDateRange:", pivotDateRange.value);
+      console.log("pivotDimension:", pivotDimension.value);
+      console.log("pivotDimensionColumns:", pivotDimensionColumns.value);
+      
+      if (!pivotDateRange.value || pivotDateRange.value.length !== 2) {
+        pivotError.value = "请先选择数据分析的日期范围";
+        console.log("Error: no date range");
+        return;
+      }
+      if (!pivotDimension.value) {
+        if (pivotDimensionColumns.value.length > 0) {
+          pivotDimension.value = pivotDimensionColumns.value[0].columnKey;
+          console.log("Auto-set pivotDimension to:", pivotDimension.value);
+        } else {
+          pivotError.value = "当前没有可透视的分析列";
+          console.log("Error: no dimension columns");
+          return;
+        }
+      }
       pivotError.value = "";
-      pivotPath.value = {};
-      selectedPivotValue.value = "";
-      selectedPivotLabel.value = "";
-      showPivotResult.value = false;
-      const trend = await queryPivot("trend", "", true);
-      const dist = await queryPivot("distribution", pivotTopDimension.value, true);
-      topLevelColumns.value = dist.columns || [];
-      cascadeColumns.value = analysisColumns.value
-        .filter((c) => !parseBoolean(c.is_top_level))
-        .map((c) => ({ columnKey: c.column_key, columnName: c.column_name }));
       showPivotResult.value = true;
       await Vue.nextTick();
-      renderTrendChart(trend.data || []);
-      renderDistributionChart(dist.data || [], columnKeyToName(pivotTopDimension.value), dist.chartType || "pie");
+      try {
+        console.log("Calling queryPivot with dimension:", pivotDimension.value);
+        const dist = await queryPivot("distribution", pivotDimension.value, "month");
+        console.log("queryPivot result:", dist);
+        const id = "dist-" + Date.now();
+        const resultItem = {
+          id,
+          data: dist.data || [],
+          dimensionKey: pivotDimension.value,
+          dimensionName: columnKeyToName(pivotDimension.value),
+          chartType: "pie"  // 分类维度强制使用饼图
+        };
+        console.log("Adding resultItem:", resultItem);
+        distPivotResults.value.push(resultItem);
+        await Vue.nextTick();
+        console.log("Rendering chart with id:", id);
+        renderDistributionChart(id, resultItem.data, resultItem.dimensionName, resultItem.chartType, resultItem.dimensionKey);
+        console.log("Chart rendered successfully");
+        // Switch to category tab
+        pivotActiveTab.value = "category";
+      } catch (err) {
+        console.error("runDimensionPivot error:", err);
+        pivotError.value = "透视分析失败: " + (err && err.message ? err.message : "未知错误");
+      }
     };
 
-    const runCascadeAnalysis = async () => {
-      if (!selectedPivotValue.value) {
-        pivotError.value = "请先点击分布图中的某个扇区或柱子";
+    // 下钻分析
+    const runDrillPivot = async () => {
+      if (!drillTarget.value || !drillColumn.value) {
         return;
       }
-      if (!cascadeDimension.value) {
-        pivotError.value = "请选择级联分析列";
+      drillDialogVisible.value = false;
+      
+      // 更新下钻路径
+      pivotDrillPath.value.push({
+        dimensionKey: drillTarget.value.dimensionKey,
+        dimensionName: drillTarget.value.dimensionName,
+        value: drillTarget.value.value
+      });
+      
+      // 构建selectedPath
+      const selectedPath = {};
+      for (const step of pivotDrillPath.value) {
+        selectedPath[step.dimensionKey] = step.value;
+      }
+      
+      try {
+        const startDate = pivotDateRange.value[0];
+        const endDate = pivotDateRange.value[1];
+        const res = await api("/pivot/query", {
+          method: "POST",
+          body: JSON.stringify({
+            mode: "distribution",
+            startDate,
+            endDate,
+            granularity: "month",
+            dimension: drillColumn.value,
+            topLevelOnly: false,
+            selectedPath
+          })
+        });
+        const dist = await res.json();
+        const id = "dist-" + Date.now();
+        const resultItem = {
+          id,
+          data: dist.data || [],
+          dimensionKey: drillColumn.value,
+          dimensionName: columnKeyToName(drillColumn.value),
+          chartType: "pie"  // 分类维度强制使用饼图
+        };
+        distPivotResults.value.push(resultItem);
+        await Vue.nextTick();
+        renderDistributionChart(id, resultItem.data, resultItem.dimensionName, resultItem.chartType, resultItem.dimensionKey);
+      } catch (err) {
+        pivotError.value = "下钻分析失败: " + (err && err.message ? err.message : "未知错误");
+      }
+    };
+
+    // 清除下钻路径
+    const clearDrillPath = () => {
+      pivotDrillPath.value = [];
+    };
+
+    // 删除单个透视图表
+    const removeDistChart = (index) => {
+      const result = distPivotResults.value[index];
+      if (result && distCharts[result.id]) {
+        distCharts[result.id].dispose();
+        delete distCharts[result.id];
+      }
+      distPivotResults.value.splice(index, 1);
+      // 如果删除的不是第一个，需要更新下钻路径
+      if (index > 0 && pivotDrillPath.value.length >= index) {
+        pivotDrillPath.value = pivotDrillPath.value.slice(0, index);
+      }
+    };
+
+    // 刷新所有图表（保持当前TAB和日期范围）
+    const refreshAllPivot = async () => {
+      if (!pivotDateRange.value || pivotDateRange.value.length !== 2) {
+        pivotError.value = "请先选择数据分析的日期范围";
         return;
       }
       pivotError.value = "";
-      const currentDim = pivotPath.value.__lastDim || pivotTopDimension.value;
-      const nextPath = Object.assign({}, pivotPath.value);
-      nextPath[currentDim] = selectedPivotValue.value;
-      delete nextPath.__lastDim;
-      pivotPath.value = Object.assign({}, nextPath, { __lastDim: cascadeDimension.value });
-      const cleanPath = Object.assign({}, nextPath);
-      const startDate = pivotDateRange.value[0];
-      const endDate = pivotDateRange.value[1];
-      const res = await api("/pivot/query", {
-        method: "POST",
-        body: JSON.stringify({
-          mode: "distribution",
-          startDate,
-          endDate,
-          granularity: trendGranularity.value,
-          dimension: cascadeDimension.value,
-          topLevelOnly: false,
-          selectedPath: cleanPath
-        })
-      });
-      const dist = await res.json();
-      await Vue.nextTick();
-      renderDistributionChart(dist.data || [], columnKeyToName(cascadeDimension.value), dist.chartType || "pie");
-      selectedPivotLabel.value = columnKeyToName(cascadeDimension.value);
-      selectedPivotValue.value = "";
+      
+      // 重新执行分析，不切换TAB
+      const currentTab = pivotActiveTab.value;
+      await runPivotAnalysisInternal();
+      pivotActiveTab.value = currentTab;
     };
 
-    const parseBoolean = (value) => {
-      if (value === true || value === "true" || value === 1 || value === "1") {
-        return true;
+    // 内部执行分析（不改变TAB）
+    const runPivotAnalysisInternal = async () => {
+      // 销毁旧图表
+      if (trendMonthChart) {
+        trendMonthChart.dispose();
+        trendMonthChart = null;
       }
-      return false;
+      if (trendWeekChart) {
+        trendWeekChart.dispose();
+        trendWeekChart = null;
+      }
+      if (trendDayChart) {
+        trendDayChart.dispose();
+        trendDayChart = null;
+      }
+      if (personnelOpsChart) {
+        personnelOpsChart.dispose();
+        personnelOpsChart = null;
+      }
+      if (personnelDevChart) {
+        personnelDevChart.dispose();
+        personnelDevChart = null;
+      }
+      if (personnelTransferChart) {
+        personnelTransferChart.dispose();
+        personnelTransferChart = null;
+      }
+      
+      // 清空分类维度图表
+      distPivotResults.value.forEach((result) => {
+        if (distCharts[result.id]) {
+          distCharts[result.id].dispose();
+          delete distCharts[result.id];
+        }
+      });
+      distPivotResults.value = [];
+      
+      // 时间维度数据
+      const trendByMonth = await queryPivot("trend", "", "month");
+      const trendByWeek = await queryPivot("trend", "", "week");
+      const trendByDay = await queryPivot("trend", "", "day");
+      
+      // 人员维度数据
+      const startDate = pivotDateRange.value[0];
+      const endDate = pivotDateRange.value[1];
+      const personnelOpsData = await queryPersonnelPivot("运维人员", startDate, endDate);
+      const personnelDevData = await queryPersonnelPivot("开发人员", startDate, endDate);
+      const personnelTransferData = await queryPersonnelTransferPivot(startDate, endDate);
+      
+      showPivotResult.value = true;
+      await Vue.nextTick();
+      
+      // 渲染时间维度图表
+      renderTrendChart("trend-chart-month", trendByMonth.data || [], "按月工单数");
+      renderTrendChart("trend-chart-week", trendByWeek.data || [], "按周工单数");
+      renderTrendChart("trend-chart-day", trendByDay.data || [], "按日工单数");
+      
+      // 渲染人员维度图表
+      renderPersonnelChart("personnel-ops-chart", personnelOpsData, "运维人员处理工单数");
+      renderPersonnelChart("personnel-dev-chart", personnelDevData, "开发人员处理工单数");
+      renderPersonnelChart("personnel-transfer-chart", personnelTransferData, "运维人员透传工单数");
+      
+      if (distPivotResults.value.length === 0) {
+        await runDimensionPivot();
+      }
     };
 
     const columnKeyToName = (key) => {
@@ -639,12 +1064,6 @@ createApp({
           return row;
         })
     );
-    const topLevelAnalysisColumns = Vue.computed(() =>
-      analysisColumns.value
-        .filter((c) => parseBoolean(c.is_top_level))
-        .map((c) => ({ columnKey: c.column_key, columnName: c.column_name }))
-    );
-
     const parseAllowedValues = (rawAllowed) => {
       if (!rawAllowed) {
         return [];
@@ -730,9 +1149,22 @@ createApp({
         searchPersistedTickets();
       }
       if (m === "data-analysis") {
-        topLevelColumns.value = topLevelAnalysisColumns.value;
-        if (!pivotTopDimension.value && topLevelColumns.value.length > 0) {
-          pivotTopDimension.value = topLevelColumns.value[0].columnKey;
+        pivotDimensionColumns.value = analysisColumns.value
+          .filter((c) => parseBoolean(c.is_top_level))
+          .map((c) => ({
+            columnKey: c.column_key,
+            columnName: c.column_name,
+            isTopLevel: true
+          }));
+        pivotCascadeColumns.value = analysisColumns.value
+          .filter((c) => !parseBoolean(c.is_top_level))
+          .map((c) => ({
+            columnKey: c.column_key,
+            columnName: c.column_name,
+            isTopLevel: false
+          }));
+        if (!pivotDimension.value && pivotDimensionColumns.value.length > 0) {
+          pivotDimension.value = pivotDimensionColumns.value[0].columnKey;
         }
         setTimeout(resizePivotCharts, 120);
       }
@@ -772,18 +1204,28 @@ createApp({
       onResultPageChange,
       exportTickets,
       pivotDateRange,
-      trendGranularity,
-      pivotTopDimension,
-      cascadeDimension,
-      topLevelColumns,
-      cascadeColumns,
+      pivotMaxDate,
+      pivotDimension,
+      pivotDimensionColumns,
+      pivotCascadeColumns,
+      pivotActiveTab,
       showPivotResult,
-      selectedPivotValue,
-      selectedPivotLabel,
       pivotError,
       clearPivotError,
       runPivotAnalysis,
-      runCascadeAnalysis,
+      onPivotTabChange,
+      refreshTimeDimension,
+      refreshCategoryDimension,
+      refreshPersonnelDimension,
+      runDimensionPivot,
+      distPivotResults,
+      pivotDrillPath,
+      drillDialogVisible,
+      drillColumn,
+      drillTarget,
+      runDrillPivot,
+      clearDrillPath,
+      removeDistChart,
       persistedYwKeyword,
       persistedRows,
       persistedPage,
@@ -793,4 +1235,6 @@ createApp({
       ticketFieldColumns
     };
   }
-}).use(ElementPlus).mount("#app");
+}).use(ElementPlus, {
+  locale: ElementPlusLocaleZhCn
+}).mount("#app");

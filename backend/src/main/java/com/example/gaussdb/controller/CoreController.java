@@ -1,5 +1,6 @@
 package com.example.gaussdb.controller;
 
+import com.example.gaussdb.dto.Requests;
 import com.example.gaussdb.dto.Requests.AnalysisColumnRequest;
 import com.example.gaussdb.dto.Requests.AnalyzeRequest;
 import com.example.gaussdb.dto.Requests.PivotRequest;
@@ -125,6 +126,16 @@ public class CoreController {
     @PostMapping("/pivot/query")
     public Object pivot(@RequestBody PivotRequest request) {
         return coreService.pivot(request);
+    }
+
+    @PostMapping("/pivot/personnel")
+    public Object pivotPersonnel(@RequestBody  Requests.PersonnelPivotRequest request) {
+        return coreService.pivotPersonnel(request);
+    }
+
+    @PostMapping("/pivot/personnel-transfer")
+    public Object pivotPersonnelTransfer(@RequestBody Requests.PersonnelPivotRequest request) {
+        return coreService.pivotPersonnelTransfer(request);
     }
 
     @PostMapping("/analysis-results/save")

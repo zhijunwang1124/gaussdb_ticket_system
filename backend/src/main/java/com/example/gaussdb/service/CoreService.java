@@ -4,6 +4,7 @@ import com.example.gaussdb.dto.Requests.AnalysisColumnRequest;
 import com.example.gaussdb.dto.Requests.PivotRequest;
 import com.example.gaussdb.dto.Requests.SaveAnalysisRequest;
 import com.example.gaussdb.dto.Requests.TicketSearchRequest;
+import com.example.gaussdb.dto.Requests.PersonnelPivotRequest;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
@@ -23,6 +24,8 @@ public interface CoreService {
     boolean stopAnalyzeTask(Long taskId);
     SseEmitter subscribeTask(Long taskId);
     Map<String, Object> pivot(PivotRequest request);
+    List<Map<String, Object>> pivotPersonnel(PersonnelPivotRequest request);
+    List<Map<String, Object>> pivotPersonnelTransfer(PersonnelPivotRequest request);
     void saveAnalysisResults(SaveAnalysisRequest request);
     void writeSampleTicketsExcel100(OutputStream outputStream) throws IOException;
 }
