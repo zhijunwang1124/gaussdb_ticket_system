@@ -48,9 +48,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class CoreServiceImpl implements CoreService {
+    private static final Logger logger = LoggerFactory.getLogger(CoreServiceImpl.class);
     private static final Pattern COLUMN_KEY_PATTERN = Pattern.compile("^[a-z][a-z0-9_]{0,62}$");
 
     private final JdbcTemplate jdbcTemplate;
@@ -94,13 +97,18 @@ public class CoreServiceImpl implements CoreService {
 
     @Override
     public Map<String, Object> importExcel(MultipartFile file) throws IOException {
+        logger.info("开始导入Excel文件: {}, 文件大小: {} bytes", file.getOriginalFilename(), file.getSize());
         int count = 0;
         try (XSSFWorkbook wb = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = wb.getSheetAt(0);
             Row header = sheet.getRow(0);
+            logger.debug("Excel表头列数: {}, 表头内容: {}", header.getLastCellNum(), 
+                header.getLastCellNum() > 0 ? header.getCell(0).getStringCellValue() : "空");
+            
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) {
+                    logger.debug("第{}行数据为空，跳过", i);
                     continue;
                 }
                 Map<String, Object> data = new LinkedHashMap<String, Object>();
@@ -119,14 +127,20 @@ public class CoreServiceImpl implements CoreService {
                         data.get("YW_NO"),
                         data.get("yw_no"));
                 if (ywNo.isEmpty() || !ywNo.startsWith("YW")) {
+                    logger.debug("第{}行工单号无效: {}, 跳过", i, ywNo);
                     continue;
                 }
+                logger.debug("正在导入工单: {}", ywNo);
                 upsertTicket(ywNo.trim(), data);
                 count++;
             }
+        } catch (Exception e) {
+            logger.error("导入Excel文件失败: {}", e.getMessage(), e);
+            throw e;
         }
         Map<String, Object> result = new HashMap<String, Object>();
         result.put("imported", count);
+        logger.info("Excel导入完成，成功导入{}条工单", count);
         return result;
     }
 
@@ -157,39 +171,47 @@ public class CoreServiceImpl implements CoreService {
     }
 
     private void upsertTicket(String ywNo, Map<String, Object> data) {
-        // 构建动态SQL，只处理TicketColumns.DATA_COLUMNS中定义的字段
-        StringBuilder insertColumns = new StringBuilder("yw_no");
-        StringBuilder insertValues = new StringBuilder("?");
-        StringBuilder updateSet = new StringBuilder();
-        List<Object> params = new ArrayList<Object>();
-        params.add(ywNo);
-        
-        for (String column : TicketColumns.DATA_COLUMNS) {
-            Object value = data.get(column);
-            // 处理特殊字段：创建日期需要转换为Timestamp
-            if ("创建日期".equals(column)) {
-                value = parseStartDate(value);
-            } else {
-                value = emptyToNull(stringVal(value));
+        logger.debug("开始更新工单: {}", ywNo);
+        try {
+            // 构建动态SQL，只处理TicketColumns.DATA_COLUMNS中定义的字段
+            StringBuilder insertColumns = new StringBuilder("yw_no");
+            StringBuilder insertValues = new StringBuilder("?");
+            StringBuilder updateSet = new StringBuilder();
+            List<Object> params = new ArrayList<Object>();
+            params.add(ywNo);
+            
+            for (String column : TicketColumns.DATA_COLUMNS) {
+                Object value = data.get(column);
+                // 处理特殊字段：创建日期需要转换为Timestamp
+                if ("创建日期".equals(column)) {
+                    value = parseStartDate(value);
+                } else {
+                    value = emptyToNull(stringVal(value));
+                }
+                
+                insertColumns.append(", ").append(TicketColumns.quote(column));
+                insertValues.append(", ?");
+                params.add(value);
+                
+                if (updateSet.length() > 0) {
+                    updateSet.append(", ");
+                }
+                updateSet.append(TicketColumns.quote(column)).append(" = EXCLUDED.").append(TicketColumns.quote(column));
             }
             
-            insertColumns.append(", ").append(TicketColumns.quote(column));
-            insertValues.append(", ?");
-            params.add(value);
+            insertColumns.append(", updated_at");
+            insertValues.append(", NOW()");
             
-            if (updateSet.length() > 0) {
-                updateSet.append(", ");
-            }
-            updateSet.append(TicketColumns.quote(column)).append(" = EXCLUDED.").append(TicketColumns.quote(column));
+            String sql = "INSERT INTO ticket (" + insertColumns + ") VALUES (" + insertValues + ") "
+                    + "ON CONFLICT (yw_no) DO UPDATE SET " + updateSet + ", updated_at = NOW()";
+            
+            logger.debug("执行SQL: {}, 参数数量: {}", sql.substring(0, 100) + "...", params.size());
+            jdbcTemplate.update(sql, params.toArray());
+            logger.debug("工单 {} 更新成功", ywNo);
+        } catch (Exception e) {
+            logger.error("更新工单 {} 失败: {}", ywNo, e.getMessage(), e);
+            throw e;
         }
-        
-        insertColumns.append(", updated_at");
-        insertValues.append(", NOW()");
-        
-        String sql = "INSERT INTO ticket (" + insertColumns + ") VALUES (" + insertValues + ") "
-                + "ON CONFLICT (yw_no) DO UPDATE SET " + updateSet + ", updated_at = NOW()";
-        
-        jdbcTemplate.update(sql, params.toArray());
     }
 
     private String stringVal(Object o) {
@@ -378,6 +400,11 @@ public class CoreServiceImpl implements CoreService {
 
     @Override
     public Long createAnalyzeTask(List<String> ywNos, List<String> selectedColumnKeys, String backgroundPrompt) {
+        logger.info("创建分析任务: 工单数量={}, 分析列={}, 背景提示词={}", 
+            ywNos == null ? 0 : ywNos.size(), 
+            selectedColumnKeys == null ? 0 : selectedColumnKeys.size(),
+            backgroundPrompt == null ? "无" : backgroundPrompt.substring(0, 50) + "...");
+        
         if (ywNos == null) {
             ywNos = Collections.emptyList();
         }
@@ -386,21 +413,29 @@ public class CoreServiceImpl implements CoreService {
         }
         final List<String> taskSelectedColumnKeys = selectedColumnKeys;
         final String taskBackgroundPrompt = backgroundPrompt;
-        Long taskId = jdbcTemplate.queryForObject(
-                "INSERT INTO analyze_task(status,total_count,success_count,failed_count,created_at,updated_at) "
-                        + "VALUES('RUNNING',?,?,0,NOW(),NOW()) RETURNING id",
-                Long.class,
-                ywNos.size(),
-                0);
-        taskCancelFlags.put(taskId, new AtomicBoolean(false));
-        final List<String> taskYwNos = ywNos;
-        executor.submit(new Runnable() {
-            @Override
-            public void run() {
-                runTask(taskId, taskYwNos, taskSelectedColumnKeys, taskBackgroundPrompt);
-            }
-        });
-        return taskId;
+        
+        try {
+            Long taskId = jdbcTemplate.queryForObject(
+                    "INSERT INTO analyze_task(status,total_count,success_count,failed_count,created_at,updated_at) "
+                            + "VALUES('RUNNING',?,?,0,NOW(),NOW()) RETURNING id",
+                    Long.class,
+                    ywNos.size(),
+                    0);
+            
+            logger.info("分析任务创建成功, 任务ID: {}", taskId);
+            taskCancelFlags.put(taskId, new AtomicBoolean(false));
+            final List<String> taskYwNos = ywNos;
+            executor.submit(new Runnable() {
+                @Override
+                public void run() {
+                    runTask(taskId, taskYwNos, taskSelectedColumnKeys, taskBackgroundPrompt);
+                }
+            });
+            return taskId;
+        } catch (Exception e) {
+            logger.error("创建分析任务失败: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override
@@ -423,9 +458,14 @@ public class CoreServiceImpl implements CoreService {
     }
 
     private void runTask(Long taskId, List<String> ywNos, List<String> selectedColumnKeys, String backgroundPrompt) {
+        logger.info("任务[{}]开始执行: 工单数={}, 分析列数={}, 并发线程数={}", 
+            taskId, ywNos.size(), selectedColumnKeys.size(), llmConcurrentThreads);
+        
         int success = 0;
         int failed = 0;
         List<Map<String, Object>> columns = resolveColumnsForTask(selectedColumnKeys);
+        logger.debug("任务[{}]分析列详情: {}", taskId, columns);
+        
         int workerCount = Math.max(1, llmConcurrentThreads);
         ExecutorService llmExecutor = Executors.newFixedThreadPool(workerCount);
         taskWorkers.put(taskId, llmExecutor);
@@ -437,11 +477,18 @@ public class CoreServiceImpl implements CoreService {
                 @Override
                 public AnalyzeItemResult call() {
                     try {
+                        logger.debug("任务[{}]开始分析工单: {}", taskId, ywNo);
                         Map<String, Object> ticketData = loadTicketData(ywNo);
+                        logger.debug("任务[{}]工单{}数据加载完成, 字段数: {}", taskId, ywNo, ticketData.size());
+                        
                         Map<String, Object> result = llmClient.analyzeTicket(ticketData, columns, backgroundPrompt);
+                        logger.debug("任务[{}]工单{}LLM分析完成, 结果: {}", taskId, ywNo, result);
+                        
                         validateResult(result, columns);
+                        logger.info("任务[{}]工单{}分析成功", taskId, ywNo);
                         return AnalyzeItemResult.success(ywNo, result);
                     } catch (Exception ex) {
+                        logger.error("任务[{}]工单{}分析失败: {}", taskId, ywNo, ex.getMessage(), ex);
                         return AnalyzeItemResult.failed(ywNo, ex.getMessage());
                     }
                 }
@@ -450,6 +497,7 @@ public class CoreServiceImpl implements CoreService {
 
         for (int i = 0; i < ywNos.size(); i++) {
             if (cancelFlag != null && cancelFlag.get()) {
+                logger.info("任务[{}]被取消", taskId);
                 break;
             }
             try {
@@ -461,16 +509,22 @@ public class CoreServiceImpl implements CoreService {
                     continue;
                 }
                 failed++;
+                logger.error("任务[{}]工单{}失败: {}", taskId, itemResult.ywNo, itemResult.message);
                 send(taskId, progressPayload(itemResult.ywNo, "FAILED", itemResult.message, success, failed, ywNos.size()));
             } catch (Exception ex) {
                 failed++;
+                logger.error("任务[{}]处理失败: {}", taskId, ex.getMessage(), ex);
                 send(taskId, progressPayload("UNKNOWN", "FAILED", ex.getMessage(), success, failed, ywNos.size()));
             }
         }
+        
         llmExecutor.shutdown();
         boolean stopped = cancelFlag != null && cancelFlag.get();
         String status = stopped ? "STOPPED" : (failed == 0 ? "DONE" : "PARTIAL");
+        
         jdbcTemplate.update("UPDATE analyze_task SET status=?,success_count=?,failed_count=?,updated_at=NOW() WHERE id=?", status, success, failed, taskId);
+        logger.info("任务[{}]执行完成: 状态={}, 成功={}, 失败={}", taskId, status, success, failed);
+        
         Map<String, Object> payload = new HashMap<String, Object>();
         payload.put("status", status);
         payload.put("finished", true);

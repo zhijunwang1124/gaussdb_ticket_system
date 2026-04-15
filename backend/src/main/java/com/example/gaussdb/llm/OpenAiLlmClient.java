@@ -14,10 +14,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 @ConditionalOnProperty(prefix = "app.llm", name = "provider", havingValue = "openai")
 public class OpenAiLlmClient implements LlmClient {
+    private static final Logger logger = LoggerFactory.getLogger(OpenAiLlmClient.class);
+    
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate();
     private final String endpoint;
@@ -37,6 +41,8 @@ public class OpenAiLlmClient implements LlmClient {
 
     @Override
     public Map<String, Object> analyzeTicket(Map<String, Object> ticketData, List<Map<String, Object>> columnDefinitions, String backgroundPrompt) {
+        logger.debug("开始调用OpenAI分析工单: endpoint={}, model={}", endpoint, model);
+        
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -48,9 +54,23 @@ public class OpenAiLlmClient implements LlmClient {
             requestBody.put("messages", buildMessages(ticketData, columnDefinitions, backgroundPrompt));
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<Map<String, Object>>(requestBody, headers);
+            
+            logger.debug("OpenAI请求内容: {}", toJson(requestBody));
+            logger.info("发送OpenAI请求...");
+            
             ResponseEntity<String> response = restTemplate.postForEntity(endpoint, request, String.class);
-            return parseResponse(response.getBody());
+            
+            logger.debug("OpenAI响应状态: {}", response.getStatusCode());
+            logger.debug("OpenAI响应内容: {}", response.getBody());
+            
+            Map<String, Object> result = parseResponse(response.getBody());
+            logger.info("OpenAI分析完成，结果: {}", result);
+            
+            return result;
         } catch (Exception ex) {
+            logger.error("调用OpenAI失败: {}", ex.getMessage());
+            logger.error("异常详情:", ex);
+            logger.error("请求配置: endpoint={}, model={}", endpoint, model);
             throw new RuntimeException("OpenAI call failed: " + ex.getMessage(), ex);
         }
     }
