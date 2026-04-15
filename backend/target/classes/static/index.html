@@ -46,7 +46,7 @@
               <el-button type="primary" round>导入 Excel</el-button>
             </el-upload>
             <div style="margin-top:10px;">
-              <a class="el-link el-link--primary" href="/api/sample/tickets-excel-100" download="ticket_test_100.xlsx">下载 100 条样例 Excel（列与库表一致，可另存为 D:\\ticket_test_100.xlsx）</a>
+              <a class="el-link el-link--primary" href="/api/sample/tickets-excel-100" download="ticket_test_sample_full_with_extra_columns.xlsx">下载 100 条样例 Excel（包含完整46个业务字段 + 9个额外测试列，系统会自动忽略不匹配的列）</a>
             </div>
             <el-alert v-if="importMessage" :title="importMessage" type="success" style="margin-top:12px;"></el-alert>
           </div>

@@ -47,7 +47,7 @@ public class CoreController {
         java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
         coreService.writeSampleTicketsExcel100(bos);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=ticket_test_100.xlsx")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=ticket_test_sample_full_with_extra_columns.xlsx")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(bos.toByteArray());
     }
