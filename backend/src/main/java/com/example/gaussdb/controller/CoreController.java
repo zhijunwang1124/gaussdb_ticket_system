@@ -130,7 +130,7 @@ public class CoreController {
 
     @PostMapping("/pivot/personnel")
     public Object pivotPersonnel(@RequestBody  Requests.PersonnelPivotRequest request) {
-        return coreService.pivotPersonnel(request);
+         return coreService.pivotPersonnel(request);
     }
 
     @PostMapping("/pivot/personnel-transfer")

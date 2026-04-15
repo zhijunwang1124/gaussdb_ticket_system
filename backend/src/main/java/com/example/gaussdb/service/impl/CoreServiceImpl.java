@@ -157,32 +157,89 @@ public class CoreServiceImpl implements CoreService {
     }
 
     private void upsertTicket(String ywNo, Map<String, Object> data) {
-        Timestamp startDate = parseStartDate(data.get("起始日期"));
         String currentPhase = stringVal(data.get("当前阶段"));
+        String severity = stringVal(data.get("问题严重性"));
         String site = stringVal(data.get("局点"));
+        String instanceName = stringVal(data.get("实例简称"));
+        String businessName = stringVal(data.get("业务名称"));
         String handler = stringVal(data.get("当前处理人"));
-        String opsPerson = stringVal(data.get("运维人员"));
-        String devPerson = stringVal(data.get("开发人员"));
-        String coopPerson = stringVal(data.get("协同人员"));
-        String desc = stringVal(data.get("问题描述"));
+        String desc = stringVal(data.get("描述"));
+        String retentionTime = stringVal(data.get("滞留时间"));
+        String slaTime = stringVal(data.get("SLA时间"));
+        String reviewer = stringVal(data.get("问题审核人"));
+        String opsAnalyzer = stringVal(data.get("运维人员分析人"));
+        String devAnalyzer = stringVal(data.get("开发人员分析人"));
+        String devCloser = stringVal(data.get("开发人员闭环人"));
+        String opsCloser = stringVal(data.get("运维人员闭环人"));
+        String closer = stringVal(data.get("问题审核关闭人"));
         String progress = stringVal(data.get("进展概述"));
+        Timestamp createDate = parseStartDate(data.get("创建日期"));
+        String reviewDuration = stringVal(data.get("问题审核总时长"));
+        String opsAnalysisDuration = stringVal(data.get("运维人员分析总时长"));
+        String devAnalysisDuration = stringVal(data.get("开发人员分析总时长"));
+        String devCloseDuration = stringVal(data.get("开发人员闭环总时长"));
+        String opsCloseDuration = stringVal(data.get("运维人员闭环总时长"));
+        String closeDuration = stringVal(data.get("问题审核关闭总时长"));
         String ctrlVer = stringVal(data.get("管控版本"));
-        String kernelVer = stringVal(data.get("内核版本"));
-        String rootCause = stringVal(data.get("问题根因"));
         String reply = stringVal(data.get("对外答复"));
-        String sql = "INSERT INTO ticket(yw_no, \"起始日期\", \"当前阶段\", \"局点\", \"当前处理人\", \"运维人员\", \"开发人员\", \"协同人员\", "
-                + "\"问题描述\", \"进展概述\", \"管控版本\", \"内核版本\", \"问题根因\", \"对外答复\", updated_at) "
-                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW()) "
+        String recoveryTime = stringVal(data.get("故障到恢复用时"));
+        String isIncident = stringVal(data.get("是否涉及故障恢复"));
+        String isPanshi = stringVal(data.get("磐石版本是否涉及"));
+        String needWarning = stringVal(data.get("是否需要预警"));
+        String rootCause = stringVal(data.get("问题根因"));
+        String dtsNo = stringVal(data.get("DTS单号"));
+        String workaround = stringVal(data.get("规避措施"));
+        String isQuality = stringVal(data.get("是否质量问题"));
+        String recoveryMethod = stringVal(data.get("恢复方法"));
+        String isConsult = stringVal(data.get("是否咨询问题"));
+        String kernelUpgrade = stringVal(data.get("是否涉及内核升级"));
+        String coopPerson = stringVal(data.get("协同处理人"));
+        String kernelVer = stringVal(data.get("高斯版本"));
+        String hcsVer = stringVal(data.get("HCS版本号"));
+        String hcsType = stringVal(data.get("HCS/轻量化"));
+        String problemType = stringVal(data.get("问题类型"));
+        String rootCauseCategory = stringVal(data.get("根因分类"));
+        String deployType = stringVal(data.get("部署形态"));
+        
+        String sql = "INSERT INTO ticket(yw_no, \"当前阶段\", \"问题严重性\", \"局点\", \"实例简称\", \"业务名称\", \"当前处理人\", "
+                + "\"描述\", \"滞留时间\", \"SLA时间\", \"问题审核人\", \"运维人员分析人\", \"开发人员分析人\", \"开发人员闭环人\", "
+                + "\"运维人员闭环人\", \"问题审核关闭人\", \"进展概述\", \"创建日期\", \"问题审核总时长\", \"运维人员分析总时长\", "
+                + "\"开发人员分析总时长\", \"开发人员闭环总时长\", \"运维人员闭环总时长\", \"问题审核关闭总时长\", \"管控版本\", "
+                + "\"对外答复\", \"故障到恢复用时\", \"是否涉及故障恢复\", \"磐石版本是否涉及\", \"是否需要预警\", \"问题根因\", "
+                + "\"DTS单号\", \"规避措施\", \"是否质量问题\", \"恢复方法\", \"是否咨询问题\", \"是否涉及内核升级\", "
+                + "\"协同处理人\", \"高斯版本\", \"HCS版本号\", \"HCS/轻量化\", \"问题类型\", \"根因分类\", \"部署形态\", updated_at) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW()) "
                 + "ON CONFLICT (yw_no) DO UPDATE SET "
-                + "\"起始日期\" = EXCLUDED.\"起始日期\", \"当前阶段\" = EXCLUDED.\"当前阶段\", \"局点\" = EXCLUDED.\"局点\", "
-                + "\"当前处理人\" = EXCLUDED.\"当前处理人\", \"运维人员\" = EXCLUDED.\"运维人员\", \"开发人员\" = EXCLUDED.\"开发人员\", "
-                + "\"协同人员\" = EXCLUDED.\"协同人员\", \"问题描述\" = EXCLUDED.\"问题描述\", \"进展概述\" = EXCLUDED.\"进展概述\", "
-                + "\"管控版本\" = EXCLUDED.\"管控版本\", \"内核版本\" = EXCLUDED.\"内核版本\", \"问题根因\" = EXCLUDED.\"问题根因\", "
-                + "\"对外答复\" = EXCLUDED.\"对外答复\", updated_at = NOW()";
-        jdbcTemplate.update(sql, ywNo, startDate, emptyToNull(currentPhase), emptyToNull(site), emptyToNull(handler),
-                emptyToNull(opsPerson), emptyToNull(devPerson), emptyToNull(coopPerson),
-                emptyToNull(desc), emptyToNull(progress), emptyToNull(ctrlVer), emptyToNull(kernelVer),
-                emptyToNull(rootCause), emptyToNull(reply));
+                + "\"当前阶段\" = EXCLUDED.\"当前阶段\", \"问题严重性\" = EXCLUDED.\"问题严重性\", \"局点\" = EXCLUDED.\"局点\", "
+                + "\"实例简称\" = EXCLUDED.\"实例简称\", \"业务名称\" = EXCLUDED.\"业务名称\", \"当前处理人\" = EXCLUDED.\"当前处理人\", "
+                + "\"描述\" = EXCLUDED.\"描述\", \"滞留时间\" = EXCLUDED.\"滞留时间\", \"SLA时间\" = EXCLUDED.\"SLA时间\", "
+                + "\"问题审核人\" = EXCLUDED.\"问题审核人\", \"运维人员分析人\" = EXCLUDED.\"运维人员分析人\", "
+                + "\"开发人员分析人\" = EXCLUDED.\"开发人员分析人\", \"开发人员闭环人\" = EXCLUDED.\"开发人员闭环人\", "
+                + "\"运维人员闭环人\" = EXCLUDED.\"运维人员闭环人\", \"问题审核关闭人\" = EXCLUDED.\"问题审核关闭人\", "
+                + "\"进展概述\" = EXCLUDED.\"进展概述\", \"创建日期\" = EXCLUDED.\"创建日期\", \"问题审核总时长\" = EXCLUDED.\"问题审核总时长\", "
+                + "\"运维人员分析总时长\" = EXCLUDED.\"运维人员分析总时长\", \"开发人员分析总时长\" = EXCLUDED.\"开发人员分析总时长\", "
+                + "\"开发人员闭环总时长\" = EXCLUDED.\"开发人员闭环总时长\", \"运维人员闭环总时长\" = EXCLUDED.\"运维人员闭环总时长\", "
+                + "\"问题审核关闭总时长\" = EXCLUDED.\"问题审核关闭总时长\", \"管控版本\" = EXCLUDED.\"管控版本\", "
+                + "\"对外答复\" = EXCLUDED.\"对外答复\", \"故障到恢复用时\" = EXCLUDED.\"故障到恢复用时\", "
+                + "\"是否涉及故障恢复\" = EXCLUDED.\"是否涉及故障恢复\", \"磐石版本是否涉及\" = EXCLUDED.\"磐石版本是否涉及\", "
+                + "\"是否需要预警\" = EXCLUDED.\"是否需要预警\", \"问题根因\" = EXCLUDED.\"问题根因\", \"DTS单号\" = EXCLUDED.\"DTS单号\", "
+                + "\"规避措施\" = EXCLUDED.\"规避措施\", \"是否质量问题\" = EXCLUDED.\"是否质量问题\", "
+                + "\"恢复方法\" = EXCLUDED.\"恢复方法\", \"是否咨询问题\" = EXCLUDED.\"是否咨询问题\", "
+                + "\"是否涉及内核升级\" = EXCLUDED.\"是否涉及内核升级\", \"协同处理人\" = EXCLUDED.\"协同处理人\", "
+                + "\"高斯版本\" = EXCLUDED.\"高斯版本\", \"HCS版本号\" = EXCLUDED.\"HCS版本号\", \"HCS/轻量化\" = EXCLUDED.\"HCS/轻量化\", "
+                + "\"问题类型\" = EXCLUDED.\"问题类型\", \"根因分类\" = EXCLUDED.\"根因分类\", \"部署形态\" = EXCLUDED.\"部署形态\", "
+                + "updated_at = NOW()";
+        jdbcTemplate.update(sql, ywNo, emptyToNull(currentPhase), emptyToNull(severity), emptyToNull(site), 
+                emptyToNull(instanceName), emptyToNull(businessName), emptyToNull(handler),
+                emptyToNull(desc), emptyToNull(retentionTime), emptyToNull(slaTime), emptyToNull(reviewer),
+                emptyToNull(opsAnalyzer), emptyToNull(devAnalyzer), emptyToNull(devCloser), emptyToNull(opsCloser),
+                emptyToNull(closer), emptyToNull(progress), createDate, emptyToNull(reviewDuration), emptyToNull(opsAnalysisDuration),
+                emptyToNull(devAnalysisDuration), emptyToNull(devCloseDuration), emptyToNull(opsCloseDuration), emptyToNull(closeDuration),
+                emptyToNull(ctrlVer), emptyToNull(reply), emptyToNull(recoveryTime), emptyToNull(isIncident),
+                emptyToNull(isPanshi), emptyToNull(needWarning), emptyToNull(rootCause), emptyToNull(dtsNo),
+                emptyToNull(workaround), emptyToNull(isQuality), emptyToNull(recoveryMethod), emptyToNull(isConsult),
+                emptyToNull(kernelUpgrade), emptyToNull(coopPerson), emptyToNull(kernelVer), emptyToNull(hcsVer),
+                emptyToNull(hcsType), emptyToNull(problemType), emptyToNull(rootCauseCategory), emptyToNull(deployType));
     }
 
     private String stringVal(Object o) {
@@ -241,7 +298,7 @@ public class CoreServiceImpl implements CoreService {
     private boolean ticketMatchesKeyword(Map<String, Object> row, String keyword) {
         String k = keyword == null ? "" : keyword;
         return String.valueOf(row.get("进展概述")).contains(k)
-                || String.valueOf(row.get("问题描述")).contains(k)
+                || String.valueOf(row.get("描述")).contains(k)
                 || String.valueOf(row.get("对外答复")).contains(k);
     }
 
@@ -711,7 +768,7 @@ public class CoreServiceImpl implements CoreService {
     }
 
     private LocalDate extractStartDate(Map<String, Object> row) {
-        Object raw = row.get("起始日期");
+        Object raw = row.get("创建日期");
         if (raw == null) {
             return null;
         }
@@ -870,8 +927,20 @@ public class CoreServiceImpl implements CoreService {
         String[] phases = new String[] {
                 "问题审核", "运维人员分析", "开发人员分析", "开发人员闭环", "运维人员闭环", "问题关闭"
         };
+        String[] severities = new String[] {"严重", "较严重", "一般", "轻微"};
         String[] sites = new String[] {"北京局", "上海局", "深圳局", "杭州局", "成都局", "广州局"};
+        String[] instanceNames = new String[] {"inst001", "inst002", "inst003", "inst004", "inst005", "inst006"};
+        String[] businessNames = new String[] {"核心业务", "交易系统", "报表系统", "网关服务", "监控系统"};
         String[] handlers = new String[] {"张三", "李四", "王五", "赵六", "钱七", "孙八"};
+        String[] durations = new String[] {"2小时", "4小时", "8小时", "16小时", "24小时", "48小时", "72小时"};
+        String[] ctrlVers = new String[] {"V2.1.0", "V2.2.0", "V2.3.0", "V3.0.0", "V3.1.0", "V3.2.0"};
+        String[] kernelVers = new String[] {"K505.1", "K506.0", "K507.1", "K508.0", "K509.0", "K510.1"};
+        String[] hcsVersions = new String[] {"HCS 8.0.1", "HCS 8.0.2", "HCS 8.0.3", "HCS 8.1.0"};
+        String[] hcsTypes = new String[] {"HCS", "轻量化"};
+        String[] problemTypes = new String[] {"性能问题", "功能缺陷", "配置问题", "网络问题", "资源问题"};
+        String[] rootCauseCategories = new String[] {"代码缺陷", "配置错误", "资源不足", "网络故障", "第三方问题"};
+        String[] deployTypes = new String[] {"集中式", "分布式"};
+        String[] yesNo = new String[] {"是", "否"};
         Random rnd = new Random(42);
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         java.util.Calendar cal = java.util.Calendar.getInstance();
@@ -892,16 +961,49 @@ public class CoreServiceImpl implements CoreService {
                 String dateStr = sdf.format(new java.util.Date(baseMs + (long) dayOff * 86400000L));
                 int c = 0;
                 r.createCell(c++).setCellValue(yw);
-                r.createCell(c++).setCellValue(dateStr);
                 r.createCell(c++).setCellValue(phases[rnd.nextInt(phases.length)]);
+                r.createCell(c++).setCellValue(severities[rnd.nextInt(severities.length)]);
                 r.createCell(c++).setCellValue(sites[rnd.nextInt(sites.length)]);
+                r.createCell(c++).setCellValue(instanceNames[rnd.nextInt(instanceNames.length)]);
+                r.createCell(c++).setCellValue(businessNames[rnd.nextInt(businessNames.length)]);
                 r.createCell(c++).setCellValue(handlers[rnd.nextInt(handlers.length)]);
                 r.createCell(c++).setCellValue("问题描述样本" + (i + 1) + "：GaussDB 连接异常或查询超时相关描述");
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(handlers[rnd.nextInt(handlers.length)]);
+                r.createCell(c++).setCellValue(handlers[rnd.nextInt(handlers.length)]);
+                r.createCell(c++).setCellValue(handlers[rnd.nextInt(handlers.length)]);
+                r.createCell(c++).setCellValue(handlers[rnd.nextInt(handlers.length)]);
+                r.createCell(c++).setCellValue(handlers[rnd.nextInt(handlers.length)]);
+                r.createCell(c++).setCellValue(handlers[rnd.nextInt(handlers.length)]);
                 r.createCell(c++).setCellValue("进展概述" + (i + 1) + "：已联系现场排查网络与参数");
-                r.createCell(c++).setCellValue("V" + rnd.nextInt(3) + "." + rnd.nextInt(10) + "." + rnd.nextInt(21));
-                r.createCell(c++).setCellValue("K" + (500 + rnd.nextInt(100)) + "." + rnd.nextInt(10));
-                r.createCell(c++).setCellValue("问题根因" + (i + 1) + "：与配置/资源/网络相关的示例根因");
+                r.createCell(c++).setCellValue(dateStr);
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(ctrlVers[rnd.nextInt(ctrlVers.length)]);
                 r.createCell(c++).setCellValue("对外答复" + (i + 1) + "：已处理并建议后续观察");
+                r.createCell(c++).setCellValue(durations[rnd.nextInt(durations.length)]);
+                r.createCell(c++).setCellValue(yesNo[rnd.nextInt(yesNo.length)]);
+                r.createCell(c++).setCellValue(yesNo[rnd.nextInt(yesNo.length)]);
+                r.createCell(c++).setCellValue(yesNo[rnd.nextInt(yesNo.length)]);
+                r.createCell(c++).setCellValue("问题根因" + (i + 1) + "：与配置/资源/网络相关的示例根因");
+                r.createCell(c++).setCellValue("DTS" + String.format("%06d", i + 1));
+                r.createCell(c++).setCellValue("规避措施" + (i + 1) + "：临时规避方案");
+                r.createCell(c++).setCellValue(yesNo[rnd.nextInt(yesNo.length)]);
+                r.createCell(c++).setCellValue("自动恢复");
+                r.createCell(c++).setCellValue(yesNo[rnd.nextInt(yesNo.length)]);
+                r.createCell(c++).setCellValue(yesNo[rnd.nextInt(yesNo.length)]);
+                r.createCell(c++).setCellValue("张三,李四");
+                r.createCell(c++).setCellValue(kernelVers[rnd.nextInt(kernelVers.length)]);
+                r.createCell(c++).setCellValue(hcsVersions[rnd.nextInt(hcsVersions.length)]);
+                r.createCell(c++).setCellValue(hcsTypes[rnd.nextInt(hcsTypes.length)]);
+                r.createCell(c++).setCellValue(problemTypes[rnd.nextInt(problemTypes.length)]);
+                r.createCell(c++).setCellValue(rootCauseCategories[rnd.nextInt(rootCauseCategories.length)]);
+                r.createCell(c++).setCellValue(deployTypes[rnd.nextInt(deployTypes.length)]);
             }
             wb.write(outputStream);
         }
@@ -958,17 +1060,17 @@ public class CoreServiceImpl implements CoreService {
     public List<Map<String, Object>> pivotPersonnel(PersonnelPivotRequest request) {
         String field = request.getField();
         if (field == null || field.trim().isEmpty()) {
-            field = "运维人员";
+            field = "运维人员分析人";
         }
         LocalDate start = parseLocalDate(request.getStartDate());
         LocalDate end = parseLocalDate(request.getEndDate());
         String quotedField = TicketColumns.quote(field);
         String sql = "SELECT " + quotedField + " AS person, COUNT(*) AS cnt FROM ticket WHERE " + quotedField + " IS NOT NULL AND " + quotedField + " != '' ";
         if (start != null) {
-            sql += " AND \"起始日期\" >= '" + start.toString() + "' ";
+            sql += " AND \"创建日期\" >= '" + start.toString() + "' ";
         }
         if (end != null) {
-            sql += " AND \"起始日期\" <= '" + end.toString() + "' ";
+            sql += " AND \"创建日期\" <= '" + end.toString() + "' ";
         }
         sql += " GROUP BY " + quotedField + " ORDER BY cnt DESC";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
@@ -986,16 +1088,16 @@ public class CoreServiceImpl implements CoreService {
     public List<Map<String, Object>> pivotPersonnelTransfer(PersonnelPivotRequest request) {
         LocalDate start = parseLocalDate(request.getStartDate());
         LocalDate end = parseLocalDate(request.getEndDate());
-        String sql = "SELECT \"运维人员\" AS person, COUNT(*) AS cnt FROM ticket " +
-                " WHERE \"运维人员\" IS NOT NULL AND \"运维人员\" != '' " +
-                " AND ((\"开发人员\" IS NOT NULL AND \"开发人员\" != '') OR (\"协同人员\" IS NOT NULL AND \"协同人员\" != '')) ";
+        String sql = "SELECT \"运维人员分析人\" AS person, COUNT(*) AS cnt FROM ticket " +
+                " WHERE \"运维人员分析人\" IS NOT NULL AND \"运维人员分析人\" != '' " +
+                " AND ((\"开发人员分析人\" IS NOT NULL AND \"开发人员分析人\" != '') OR (\"协同处理人\" IS NOT NULL AND \"协同处理人\" != '')) ";
         if (start != null) {
-            sql += " AND \"起始日期\" >= '" + start.toString() + "' ";
+            sql += " AND \"创建日期\" >= '" + start.toString() + "' ";
         }
         if (end != null) {
-            sql += " AND \"起始日期\" <= '" + end.toString() + "' ";
+            sql += " AND \"创建日期\" <= '" + end.toString() + "' ";
         }
-        sql += " GROUP BY \"运维人员\" ORDER BY cnt DESC";
+        sql += " GROUP BY \"运维人员分析人\" ORDER BY cnt DESC";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (Map<String, Object> row : rows) {

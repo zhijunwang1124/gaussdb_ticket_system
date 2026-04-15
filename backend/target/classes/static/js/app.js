@@ -148,8 +148,8 @@ createApp({
       try {
         const startDate = pivotDateRange.value[0];
         const endDate = pivotDateRange.value[1];
-        const personnelOpsData = await queryPersonnelPivot("运维人员", startDate, endDate);
-        const personnelDevData = await queryPersonnelPivot("开发人员", startDate, endDate);
+        const personnelOpsData = await queryPersonnelPivot("运维人员分析人", startDate, endDate);
+        const personnelDevData = await queryPersonnelPivot("开发人员分析人", startDate, endDate);
         const personnelTransferData = await queryPersonnelTransferPivot(startDate, endDate);
         renderPersonnelChart("personnel-ops-chart", personnelOpsData, "运维人员处理工单数");
         renderPersonnelChart("personnel-dev-chart", personnelDevData, "开发人员处理工单数");
@@ -202,19 +202,49 @@ createApp({
       Vue.onUnmounted(disposePivotCharts);
     }
     const ticketFieldColumns = [
-      "起始日期",
       "当前阶段",
+      "问题严重性",
       "局点",
+      "实例简称",
+      "业务名称",
       "当前处理人",
-      "运维人员",
-      "开发人员",
-      "协同人员",
-      "问题描述",
+      "描述",
+      "滞留时间",
+      "SLA时间",
+      "问题审核人",
+      "运维人员分析人",
+      "开发人员分析人",
+      "开发人员闭环人",
+      "运维人员闭环人",
+      "问题审核关闭人",
       "进展概述",
+      "创建日期",
+      "问题审核总时长",
+      "运维人员分析总时长",
+      "开发人员分析总时长",
+      "开发人员闭环总时长",
+      "运维人员闭环总时长",
+      "问题审核关闭总时长",
       "管控版本",
-      "内核版本",
+      "对外答复",
+      "故障到恢复用时",
+      "是否涉及故障恢复",
+      "磐石版本是否涉及",
+      "是否需要预警",
       "问题根因",
-      "对外答复"
+      "DTS单号",
+      "规避措施",
+      "是否质量问题",
+      "恢复方法",
+      "是否咨询问题",
+      "是否涉及内核升级",
+      "协同处理人",
+      "高斯版本",
+      "HCS版本号",
+      "HCS/轻量化",
+      "问题类型",
+      "根因分类",
+      "部署形态"
     ];
     const configForm = ref({
       columnKey: "",
@@ -1009,8 +1039,8 @@ createApp({
       // 人员维度数据
       const startDate = pivotDateRange.value[0];
       const endDate = pivotDateRange.value[1];
-      const personnelOpsData = await queryPersonnelPivot("运维人员", startDate, endDate);
-      const personnelDevData = await queryPersonnelPivot("开发人员", startDate, endDate);
+const personnelOpsData = await queryPersonnelPivot("运维人员分析人", startDate, endDate);
+        const personnelDevData = await queryPersonnelPivot("开发人员分析人", startDate, endDate);
       const personnelTransferData = await queryPersonnelTransferPivot(startDate, endDate);
       
       showPivotResult.value = true;
@@ -1095,7 +1125,7 @@ createApp({
       return [];
     };
     const extractCreatedDate = (row) => {
-      const v = row["起始日期"];
+      const v = row["创建日期"];
       if (v == null || v === "") {
         return "";
       }
