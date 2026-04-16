@@ -400,10 +400,10 @@ public class CoreServiceImpl implements CoreService {
 
     @Override
     public Long createAnalyzeTask(List<String> ywNos, List<String> selectedColumnKeys, String backgroundPrompt) {
-        logger.info("创建分析任务: 工单数量={}, 分析列={}, 背景提示词={}", 
+        logger.info("创建分析任务: 工单数量={}, 分析列={}, 背景提示词长度={}", 
             ywNos == null ? 0 : ywNos.size(), 
             selectedColumnKeys == null ? 0 : selectedColumnKeys.size(),
-            backgroundPrompt == null ? "无" : backgroundPrompt.substring(0, 50) + "...");
+            backgroundPrompt == null ? 0 : backgroundPrompt.length());
         
         if (ywNos == null) {
             ywNos = Collections.emptyList();
